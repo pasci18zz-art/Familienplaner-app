@@ -22,41 +22,26 @@ Technik: React + TypeScript + Vite, verpackt mit Capacitor 8. Die APK baut GitHu
 **Wichtig:** Solange der Abgleich fehlt, speichert jedes Gerät nur seine eigenen Einträge.
 Übergangsweise: Einstellungen → „Sicherung kopieren“ auf Gerät A, auf Gerät B „Sicherung einfügen“.
 
-## App installieren (Obtainium)
+## App herunterladen
 
-1. Auf jedem Gerät [Obtainium](https://github.com/ImranR98/Obtainium) installieren.
-2. In Obtainium „App hinzufügen“ → URL `https://github.com/pasci18zz-art/familienplaner-app` → Hinzufügen.
-3. Installieren. Beim ersten Mal warnt Google Play Protect, weil die App nicht aus dem Play Store kommt.
-   „Weitere Details“ → „Trotzdem installieren“. Das ist bei selbst gebauten Apps normal.
-4. Obtainium meldet künftig neue Versionen von selbst.
+Jede Änderung auf `main` baut automatisch eine neue APK und legt sie als Release **„neueste-version“** ab.
 
-Voraussetzung: Es gibt ein GitHub-Release (siehe unten). Ohne Release findet Obtainium nichts.
+**Direkter Download (bleibt immer gleich):**
+https://github.com/pasci18zz-art/Familienplaner-app/releases/download/neueste-version/Familienplaner.apk
 
-## Einmalig: Keystore in GitHub hinterlegen
+1. Link auf dem Handy/Tablet öffnen, `Familienplaner.apk` lädt herunter.
+2. Antippen → Installieren. Beim ersten Mal „Installation aus unbekannten Quellen“ erlauben.
+3. Warnt Google Play Protect: „Weitere Details“ → „Trotzdem installieren“.
+4. Für ein Update einfach dieselbe Datei neu laden und drüber installieren. Die Daten bleiben erhalten.
 
-Ohne Keystore baut GitHub nur eine Test-APK, die sich nicht als Update installieren lässt.
+Samsung: Falls die Installation blockiert wird, unter Einstellungen → Sicherheit und Datenschutz → **Automatische Blockierung** ausschalten.
 
-GitHub → dieses Repo → **Settings → Secrets and variables → Actions → New repository secret**.
-Diese vier Secrets anlegen:
+### Signierung
 
-| Name | Inhalt |
-|---|---|
-| `KEYSTORE_BASE64` | Keystore-Datei als Base64 (eine lange Zeile) |
-| `KEYSTORE_PASSWORD` | Passwort des Keystores |
-| `KEY_ALIAS` | `familienplaner` |
-| `KEY_PASSWORD` | Passwort des Schlüssels (hier gleich wie oben) |
-
-Keystore-Datei und Passwort zusätzlich sicher aufbewahren (Passwort-Manager, USB-Stick).
-Geht der Keystore verloren, müssen alle die App neu installieren und verlieren ihre lokalen Daten.
-Der Keystore gehört **nie** ins Repo.
-
-## Neue Version veröffentlichen
-
-1. In `package.json` die `version` erhöhen (z. B. `1.0.0` → `1.1.0`).
-2. GitHub → **Releases → Draft a new release** → Tag `v1.1.0` neu anlegen → „Publish release“.
-3. GitHub Actions baut die signierte APK und hängt sie an das Release. Obtainium findet sie danach.
-
-Jeder Push auf `main` baut ebenfalls eine APK. Sie liegt dann unter **Actions → Lauf → Artifacts** (zum Testen).
+Ohne eigene Secrets signiert GitHub Actions mit einem Schlüssel, der im Actions-Cache gespeichert wird
+(wie bei Standby). Optional kann ein eigener Keystore hinterlegt werden
+(Secrets `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`). Achtung: Ein Wechsel des
+Schlüssels heißt einmal deinstallieren und neu installieren.
 
 ## Entwickeln
 

@@ -30,6 +30,17 @@ edit(join(ROOT, 'build.gradle'), (s) =>
 );
 console.log(`Version ${versionName} (${versionCode})`);
 
+// 1b. Ohne eigene Secrets: Release-APK mit dem (im Actions-Cache gespeicherten) Debug-Schlüssel signieren,
+//     damit sie installierbar ist und Updates darüber passen.
+if (process.env.USE_DEBUG_SIGNING === '1') {
+  edit(join(ROOT, 'build.gradle'), (s) =>
+    s.includes('signingConfig signingConfigs.debug')
+      ? s
+      : s.replace(/(buildTypes\s*\{\s*release\s*\{)/, '$1\n            signingConfig signingConfigs.debug'),
+  );
+  console.log('Release wird mit dem Debug-Schlüssel signiert.');
+}
+
 // 2. App-Symbol: blauer Hintergrund, weißer Kalender, drei Personenfarben
 const ICON_BODY = 'M36,32h36a6,6 0 0 1 6,6v34a6,6 0 0 1 -6,6h-36a6,6 0 0 1 -6,-6v-34a6,6 0 0 1 6,-6z';
 const dot = (x) => `M${x - 4.5},61a4.5,4.5 0 1,0 9,0a4.5,4.5 0 1,0 -9,0z`;

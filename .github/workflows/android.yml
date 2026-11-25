@@ -1,14 +1,16 @@
-name: Android-APK
+name: APK bauen
 
 on:
   push:
     branches: [main]
-    tags: ['v*']
-  pull_request:
   workflow_dispatch:
 
 permissions:
   contents: write
+
+concurrency:
+  group: apk-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -30,14 +32,10 @@ jobs:
       - name: Version festlegen
         id: ver
         run: |
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            NAME="${GITHUB_REF_NAME#v}"
-          else
-            NAME="$(node -p "require('./package.json').version")-dev.${GITHUB_RUN_NUMBER}"
-          fi
+          NAME="$(node -p "require('./package.json').version").${GITHUB_RUN_NUMBER}"
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
           echo "code=$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
-          echo "Version: $NAME ($GITHUB_RUN_NUMBER)"
+          echo "Version: $NAME"
 
       - name: Web-App bauen
         run: |
@@ -45,6 +43,24 @@ jobs:
           npm run build
         env:
           APP_VERSION: ${{ steps.ver.outputs.name }}
+
+      - name: Signierschlüssel vorbereiten
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ] && [ -n "$KEYSTORE_PASSWORD" ]; then
+            echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.jks"
+            echo "HAS_RELEASE_KEY=1" >> "$GITHUB_ENV"
+          else
+            echo "USE_DEBUG_SIGNING=1" >> "$GITHUB_ENV"
+          fi
+
+      # Ohne eigene Secrets: Debug-Schlüssel zwischenspeichern, damit Updates installierbar bleiben.
+      - uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: familienplaner-debug-keystore-v1
 
       - name: Android-Projekt erzeugen
         run: |
@@ -55,41 +71,44 @@ jobs:
           VERSION_NAME: ${{ steps.ver.outputs.name }}
           VERSION_CODE: ${{ steps.ver.outputs.code }}
 
-      - name: APK bauen (signiert, wenn Keystore vorhanden)
+      - name: APK bauen
         working-directory: android
         env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           chmod +x gradlew
-          if [ -n "$KEYSTORE_BASE64" ]; then
-            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          if [ "$HAS_RELEASE_KEY" = "1" ]; then
             ./gradlew --no-daemon assembleRelease \
               -Pandroid.injected.signing.store.file="$RUNNER_TEMP/release.jks" \
               -Pandroid.injected.signing.store.password="$KEYSTORE_PASSWORD" \
-              -Pandroid.injected.signing.key.alias="$KEY_ALIAS" \
-              -Pandroid.injected.signing.key.password="$KEY_PASSWORD"
-            cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/familienplaner.apk"
-            rm -f "$RUNNER_TEMP/release.jks"
+              -Pandroid.injected.signing.key.alias="${KEY_ALIAS:-familienplaner}" \
+              -Pandroid.injected.signing.key.password="${KEY_PASSWORD:-$KEYSTORE_PASSWORD}"
           else
-            echo "::warning::Kein Keystore in den Secrets. Es wird eine Test-APK gebaut, die sich nicht als Update installieren lässt."
-            ./gradlew --no-daemon assembleDebug
-            cp app/build/outputs/apk/debug/app-debug.apk "$RUNNER_TEMP/familienplaner.apk"
+            ./gradlew --no-daemon assembleRelease
           fi
-          mkdir -p ../out
-          cp "$RUNNER_TEMP/familienplaner.apk" "../out/familienplaner-${{ steps.ver.outputs.name }}.apk"
+          rm -f "$RUNNER_TEMP/release.jks"
+          cp app/build/outputs/apk/release/app-release.apk ../Familienplaner.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: familienplaner-${{ steps.ver.outputs.name }}
-          path: out/*.apk
-          retention-days: 30
+          name: Familienplaner-${{ steps.ver.outputs.name }}
+          path: Familienplaner.apk
 
-      - name: GitHub-Release anlegen (nur bei Tag v*)
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: out/*.apk
-          generate_release_notes: true
+      - name: Als "Neueste Version" veröffentlichen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for i in 1 2 3 4; do
+            gh release delete neueste-version -y --cleanup-tag || true
+            if gh release create neueste-version Familienplaner.apk \
+              --title "Familienplaner – neueste Version (${{ steps.ver.outputs.name }})" \
+              --notes "Automatisch gebaut am $(date +'%d.%m.%Y %H:%M') aus ${{ github.ref_name }}. Auf dem Handy oder Tablet die Datei Familienplaner.apk herunterladen und installieren." \
+              --latest \
+              --target ${{ github.sha }}; then
+              exit 0
+            fi
+            sleep $((i * 10))
+          done
+          exit 1
