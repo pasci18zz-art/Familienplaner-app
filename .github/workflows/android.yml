@@ -57,7 +57,9 @@ jobs:
           fi
 
       # Ohne eigene Secrets: Debug-Schlüssel zwischenspeichern, damit Updates installierbar bleiben.
-      - uses: actions/cache@v4
+      - name: Gespeicherten Schlüssel laden
+        id: dk
+        uses: actions/cache/restore@v4
         with:
           path: ~/.android/debug.keystore
           key: familienplaner-debug-keystore-v1
@@ -90,6 +92,15 @@ jobs:
           fi
           rm -f "$RUNNER_TEMP/release.jks"
           cp app/build/outputs/apk/release/app-release.apk ../Familienplaner.apk
+
+      # Sofort speichern (nicht erst am Ende), damit der Schlüssel auch erhalten bleibt,
+      # wenn das Veröffentlichen danach an GitHub-Störungen scheitert.
+      - name: Schlüssel speichern
+        if: steps.dk.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: familienplaner-debug-keystore-v1
 
       - uses: actions/upload-artifact@v4
         with:
