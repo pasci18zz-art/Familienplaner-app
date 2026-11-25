@@ -1,0 +1,12 @@
+{
+  "appId": "de.familie.planer",
+  "appName": "Familienplaner",
+  "webDir": "dist",
+  "android": {
+    "allowMixedContent": false
+  },
+  "plugins": {
+    "CapacitorHttp": { "enabled": true },
+    "SystemBars": { "style": "LIGHT" }
+  }
+}
